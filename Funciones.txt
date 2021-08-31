@@ -1,0 +1,99 @@
+---trigger
+
+CREATE OR REPLACE FUNCTION maximoParto() RETURNS TRIGGER
+AS
+$maximoParto$
+
+  DECLARE
+    salas int;
+    maximo int = 3;
+BEGIN
+    select partos.sala into salas from PARTOS ;
+    if ( maximo < salas ) then
+      RAISE EXCEPTION 'No se permite mas de 3 partos por dia';
+    END if;
+    RETURN new;
+END;
+$maximoParto$
+LANGUAGE plpgsql;
+
+
+--before after instead of
+create trigger maximoParto before insert
+on PARTOS fOR EACH ROW
+execute procedure maximoParto();
+
+
+--INSERTAR DATOS VERIFICAR TRIGGER
+--INSERT INTO PARTOS VALUES (5, 1, 2, 2,'2021-06-16', '12:00', '13:00', 'NORMAL', '108');
+
+-------------------------------------------------------------------------------------------------------------
+
+---procedimiento almacenado
+
+create or replace function total (varchar)returns bigint
+as
+$$
+Select count(partos.id_doctor) from partos,doctores
+WHERE
+doctores.id = partos.id_doctor and 
+doctores.nombres = $1
+$$
+language SQL;
+
+select total('JUAN');
+
+--------------------------------------------------------------------------------------------------------------
+
+--- ireport
+SELECT 
+  doctores.nombres, 
+  citas.fecha_programada, 
+  partos.id_paciente
+FROM 
+  public.partos, 
+  public.citas, 
+  public.doctores
+WHERE 
+  partos.id_paciente = citas.id_paciente AND
+  doctores.id = partos.id_doctor;
+
+---------------------------------------------------------------------------------------------------------------
+
+--- cursor 
+create or replace function fecha(date)
+returns text
+as
+$$
+declare 
+	fechas alias for $1;
+	reco record;
+	mostrar cursor for select
+		partos.fecha, 
+		partos.hora_entrada, 
+		partos.sala, 
+		insumos.detalle, 
+		insumos.cantidad, 
+		insumos.precio
+	FROM 
+		public.insumos
+		inner join public.partos on partos.id = insumos.id_parto
+	WHERE 
+		partos.fecha = $1;
+	begin
+		open mostrar;
+		
+		fetch mostrar into reco;
+		raise notice
+			'fecha: %', reco.fecha;
+		while (found) loop
+			raise notice'hora de entra: % sala: % insumos: % cantidad: % precios: %', reco.hora_entrada, reco.sala, reco.detalle, reco.cantidad, reco.precio ;
+		fetch mostrar into reco;
+		end loop;	
+	end;
+$$
+language plpgsql;
+
+
+--Insert de consulta
+select fecha('2021-06-15');
